@@ -459,114 +459,119 @@ function reload_text()
 end
 
 function chat_add(id, chat)
-	if id == 221 or id == 222 then
-		local player_name = string.match(chat,"[^a-zA-Z]+([a-zA-Z]+)")
-		local chat_head = string.match(chat,"([^a-zA-Z]+)")
-		local rank = 0
-		local mentor_flag = 'B'
-		local rank_match = false
-		if player_name then
-			for _,flag in pairs(assist_flags.labels) do
-				local cur_flag = assist_flags[flag]
-				for cur_rank,rank_hex in pairs(cur_flag) do
-					rank_match = string.find(chat_head,rank_hex) or false
-					if rank_match then
-						rank = cur_rank
-						mentor_flag = string.upper(string.sub(flag,1,1))
-						break
-					end
-				end
-				if rank_match then
-					break
-				end
-			end
-		end
-		table.insert(archive_table,os.date('[%x@%X]')..':'..id..':'..chat)
-		if rank == 0 then 
-			chat = "[R"..rank..']'..chat
-		else
-			chat = "["..mentor_flag.."-R"..rank..']'..string.sub(chat,4)
-		end
-		chat = string.gsub(chat,"ü","")
-		if chat_debug then print('ID: '..id..' Txt: '..chat) end
-	end
-	if not settings.vanilla_mode then
-		chat = chat:strip_colors()
-	end
-    chat = string.gsub(chat,string.char(0xEF, 0x27),'{:')
-    chat = string.gsub(chat,string.char(0xEF, 0x28)..'.',':}')
-	if chat_debug then print('ID: '..id..' Txt: '..chat) end
+    if id == 221 or id == 222 then
+        local player_name = string.match(chat,"[^a-zA-Z]+([a-zA-Z]+)")
+        local chat_head = string.match(chat,"([^a-zA-Z]+)")
+        local rank = 0
+        local mentor_flag = 'B'
+        local rank_match = false
+        if player_name then
+            for _,flag in pairs(assist_flags.labels) do
+                local cur_flag = assist_flags[flag]
+                for cur_rank,rank_hex in pairs(cur_flag) do
+                    rank_match = string.find(chat_head,rank_hex) or false
+                    if rank_match then
+                        rank = cur_rank
+                        mentor_flag = string.upper(string.sub(flag,1,1))
+                        break
+                    end
+                end
+                if rank_match then
+                    break
+                end
+            end
+        end
+        table.insert(archive_table,os.date('[%x@%X]')..':'..id..':'..chat)
+        if rank == 0 then 
+            chat = "[R"..rank..']'..chat
+        else
+            chat = "["..mentor_flag.."-R"..rank..']'..string.sub(chat,4)
+        end
+        chat = string.gsub(chat,"ü","")
+        if chat_debug then print('ID: '..id..' Txt: '..chat) end
+    end
 
-	check_mentions(id,chat)
-	if not chat_tables[all_tabname] then
-		chat_tables[all_tabname] = {}
-	end
-	chat = string.gsub(chat,'[\r\n]','')
-	chat = string.gsub(chat,string.char(0x81, 0xA8),'->')
-	chat = string.gsub(chat,string.char(0x81, 0xA9),'<-')
-	chat = string.gsub(chat,string.char(0x07, 0x0A),'')
-	chat = string.gsub(chat,'"','\"')
-	if settings.archive then
-		if not archive_table then
-			archive_table = {}
-		end
-		table.insert(archive_table,os.date('[%x@%X]')..':'..id..':'..chat)
-	end
-	if settings.split_drops then
-		if id == 121 or id == 127 then
-			if string.find(chat,'find') or string.find(chat,'obtains') then
-				if not chat_tables['Drops'] then chat_tables['Drops'] = {} end
-				table.insert(chat_tables['Drops'],os.time()..':'..id..':'..chat)
-				if #chat_tables['Drops'] > settings.log_length then
-					scroll = #chat_tables['Drops'] - settings.log_length
-				else
-					scroll = 0
-				end
-				if settings.drops_window then
-					load_chat_tab(scroll,'Drops')
-					drops_timer = os.clock()+30
-				end
-				return
-			end
-		end
-	end
-	if battle_ids[id] then  -- Duplicated messages that battlemod has it's own variants of
-		if id == 20 and battlemod_loaded and (string.find(chat,'scores.') or string.find(chat,'uses') or string.find(chat,'hits') or string.match(chat,'.*spikes deal.*') or string.find(chat,'misses') or string.find(chat,'cures') or string.find(chat,'additional') or string.find(chat,'retaliates'))then
-				return
-		end
---		local battle_text = convert_text(os.time()..':'..id..':'..chat,'Battle')
---		table.insert(battle_table,battle_text)
-		if not T(tab_channels['Battle_Exclusions']):contains(id) then
-			table.insert(battle_table,os.time()..':'..id..':'..chat)
-			if settings.undocked_hide and settings.undocked_tab == battle_tabname then
-				TextWindow.undocked:show()
-				undocked_timer = os.clock()+30
-			end
-		end
-		if settings.battle_all then
---			table.insert(chat_tables[all_tabname],'**'..battle_text)
-			table.insert(chat_tables[all_tabname],os.time()..':'..id..':'..chat)
-		end
-		
-	else
-		if not T(tab_channels['All_Exclusions']):contains(id) then
-			table.insert(chat_tables[all_tabname],os.time()..':'..id..':'..chat)
-		end
-	end
-	local tab_id = tab_ids[tostring(id)] or false
-	if tab_id then
-		local chat_type = tab_id
-		if not chat_tables[chat_type] then chat_tables[chat_type] = {} end
-		table.insert(chat_tables[chat_type],os.time()..':'..id..':'..chat)
-		if settings.undocked_hide and settings.undocked_tab == chat_type then	
-			TextWindow.undocked:show()
-			undocked_timer = os.clock()+30
-		end
-	end
-	if not queue_reload_text then --Avoid having 8 messages that are received at the same time process
-		queue_reload_text = true
-		reload_clock = os.clock()+1
-	end
+    -- Process auto-translate conversion directly on captured payloads before strip_colors
+    chat = string.gsub(chat, '[\253](.-)[\253]', function(payload)
+        return '{:' .. windower.convert_auto_trans('\253' .. payload .. '\253') .. ':}'
+    end)
+
+    if not settings.vanilla_mode then
+        chat = chat:strip_colors()
+    end
+
+    if chat_debug then print('ID: '..id..' Txt: '..chat) end
+
+    check_mentions(id,chat)
+    if not chat_tables[all_tabname] then
+        chat_tables[all_tabname] = {}
+    end
+    chat = string.gsub(chat,'[\r\n]','')
+    chat = string.gsub(chat,string.char(0x81, 0xA8),'->')
+    chat = string.gsub(chat,string.char(0x81, 0xA9),'<-')
+    chat = string.gsub(chat,string.char(0x07, 0x0A),'')
+    chat = string.gsub(chat,'"','\"')
+    if settings.archive then
+        if not archive_table then
+            archive_table = {}
+        end
+        table.insert(archive_table,os.date('[%x@%X]')..':'..id..':'..chat)
+    end
+    if settings.split_drops then
+        if id == 121 or id == 127 then
+            if string.find(chat,'find') or string.find(chat,'obtains') then
+                if not chat_tables['Drops'] then chat_tables['Drops'] = {} end
+                table.insert(chat_tables['Drops'],os.time()..':'..id..':'..chat)
+                if #chat_tables['Drops'] > settings.log_length then
+                    scroll = #chat_tables['Drops'] - settings.log_length
+                else
+                    scroll = 0
+                end
+                if settings.drops_window then
+                    load_chat_tab(scroll,'Drops')
+                    drops_timer = os.clock()+30
+                end
+                return
+            end
+        end
+    end
+    if battle_ids[id] then  -- Duplicated messages that battlemod has it's own variants of
+        if id == 20 and battlemod_loaded and (string.find(chat,'scores.') or string.find(chat,'uses') or string.find(chat,'hits') or string.match(chat,'.*spikes deal.*') or string.find(chat,'misses') or string.find(chat,'cures') or string.find(chat,'additional') or string.find(chat,'retaliates'))then
+                return
+        end
+--      local battle_text = convert_text(os.time()..':'..id..':'..chat,'Battle')
+--      table.insert(battle_table,battle_text)
+        if not T(tab_channels['Battle_Exclusions']):contains(id) then
+            table.insert(battle_table,os.time()..':'..id..':'..chat)
+            if settings.undocked_hide and settings.undocked_tab == battle_tabname then
+                TextWindow.undocked:show()
+                undocked_timer = os.clock()+30
+            end
+        end
+        if settings.battle_all then
+--          table.insert(chat_tables[all_tabname],'**'..battle_text)
+            table.insert(chat_tables[all_tabname],os.time()..':'..id..':'..chat)
+        end
+        
+    else
+        if not T(tab_channels['All_Exclusions']):contains(id) then
+            table.insert(chat_tables[all_tabname],os.time()..':'..id..':'..chat)
+        end
+    end
+    local tab_id = tab_ids[tostring(id)] or false
+    if tab_id then
+        local chat_type = tab_id
+        if not chat_tables[chat_type] then chat_tables[chat_type] = {} end
+        table.insert(chat_tables[chat_type],os.time()..':'..id..':'..chat)
+        if settings.undocked_hide and settings.undocked_tab == chat_type then    
+            TextWindow.undocked:show()
+            undocked_timer = os.clock()+30
+        end
+    end
+    if not queue_reload_text then --Avoid having 8 messages that are received at the same time process
+        queue_reload_text = true
+        reload_clock = os.clock()+1
+    end
 end
 
 vanilla_color_codes = dofile(windower.addon_path..'data/colors.lua')

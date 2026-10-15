@@ -1115,3 +1115,20 @@ windower.register_event('load', function()
 	load_events()
 	coroutine.schedule(build_maps,2.5)
 end)
+
+local last_click = 0
+windower.register_event('mouse', function(type, x, y, delta, blocked)
+    if type == 4 and (os.clock() - last_click > 0.2) then
+        local pos_x, pos_y = TextWindow.main:pos()
+        local ext_x, _ = TextWindow.main:extents()
+        if x >= pos_x and x <= (pos_x + ext_x) and y >= pos_y and y <= (pos_y + 20) then
+            last_click = os.clock()
+            if TextWindow.setup:visible() then
+                texts.visible(TextWindow.setup, false)
+            else
+                setup_menu()
+            end
+            return true
+        end
+    end
+end)
